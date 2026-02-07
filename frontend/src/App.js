@@ -23,7 +23,7 @@ let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 
 L.Marker.prototype.options.icon = DefaultIcon;
 
 // ⚠️ CHANGE THIS TO YOUR RENDER URL BEFORE DEPLOYING
-const API_URL = 'https://umang-backend.onrender.com/api'; 
+const API_URL = 'https://umang-backend-z2dz.onrender.com/api';
 
 // --- 1. GLOBAL UTILS ---
 const loadRazorpay = () => {
