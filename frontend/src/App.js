@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import jsPDF from 'jspdf';
@@ -8,12 +8,12 @@ import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { 
   ShoppingCart, MapPin, Search, X, Box, LogOut, Loader, 
-  Edit2, Trash2, Smartphone, Lock, User, Key, ShieldCheck, Save, 
-  RotateCcw, Package, Users, Plus, Minus, ShoppingBag, 
-  Navigation, Phone, Clock, HelpCircle, MessageSquare, Mail, 
-  Truck, CreditCard, RefreshCw, ChevronDown, Send, ArrowLeft, CheckCircle, 
-  FileText, Star, Zap, Filter, Sun, Moon, Menu, Facebook, Instagram, Twitter, 
-  Crown, ThumbsUp, Info, ChevronLeft, ChevronRight, AlertTriangle, Settings, LogIn, ExternalLink, Headset, Bell
+  Edit2, Trash2, Smartphone, Lock, User, Key, ShieldCheck, 
+  RotateCcw, Plus, Minus, ShoppingBag, 
+  Phone, Clock, HelpCircle, MessageSquare, Mail, 
+  Truck, CheckCircle, 
+  Star, Zap, Sun, Moon, Menu, Facebook, Instagram, Twitter, 
+  Crown, Info, AlertTriangle, ChevronDown, Send, ArrowLeft, ChevronLeft, ChevronRight
 } from 'lucide-react';
 
 // --- LEAFLET ICON FIX ---
@@ -22,7 +22,8 @@ import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 let DefaultIcon = L.icon({ iconUrl: icon, shadowUrl: iconShadow, iconSize: [25, 41], iconAnchor: [12, 41] });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-const API_URL = 'https://umang-backend.onrender.com/api';
+// ⚠️ CHANGE THIS TO YOUR RENDER URL BEFORE DEPLOYING
+const API_URL = 'https://umang-backend.onrender.com/api'; 
 
 // --- 1. GLOBAL UTILS ---
 const loadRazorpay = () => {
@@ -86,7 +87,7 @@ const AppProvider = ({ children }) => {
   const [user, setUser] = useState(null); 
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isChatWidgetOpen, setIsChatWidgetOpen] = useState(false); // <--- NEW: Global Chat State
+  const [isChatWidgetOpen, setIsChatWidgetOpen] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [isRestoring, setIsRestoring] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(true);
@@ -104,13 +105,14 @@ const AppProvider = ({ children }) => {
     setTimeout(() => setIsRestoring(false), 1000); 
   }, []);
 
+  // FIX: Added missing dependencies to avoid build warning
   useEffect(() => {
     if (loadingInitial || isRestoring) return;
     localStorage.setItem('umangCart', JSON.stringify(cart));
     if (user && user.id) {
         fetch(`${API_URL}/users/${user.id}/cart`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cart }) }).catch(console.error);
     }
-  }, [cart, user]);
+  }, [cart, user, loadingInitial, isRestoring]);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDarkMode);
@@ -162,6 +164,7 @@ const AppProvider = ({ children }) => {
     </AppContext.Provider>
   );
 };
+
 // --- 4. UI COMPONENTS ---
 
 const BackgroundVideo = () => {
@@ -347,7 +350,15 @@ const Footer = () => (
 const CartDrawer = () => {
     const { isCartOpen, setIsCartOpen, cart, addToCart, decreaseQty, removeFromCart, user, emptyCart, toast } = useContext(AppContext);
     const [selectedIds, setSelectedIds] = useState([]);
-    useEffect(() => { const newIds = cart.map(i => i.id).filter(id => !selectedIds.includes(id)); if (newIds.length > 0) setSelectedIds([...selectedIds, ...newIds]); }, [cart.length]);
+
+    // FIX: Functional update to remove dependency warning
+    useEffect(() => { 
+        setSelectedIds(prev => {
+            const newIds = cart.map(i => i.id).filter(id => !prev.includes(id));
+            return newIds.length > 0 ? [...prev, ...newIds] : prev;
+        });
+    }, [cart]);
+
     const toggleSelect = (id) => setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
     const selectedItems = cart.filter(item => selectedIds.includes(item.id));
     const payTotal = selectedItems.reduce((acc, item) => acc + (item.price * item.qty), 0);
@@ -366,9 +377,9 @@ const CartDrawer = () => {
     return ( <AnimatePresence> {isCartOpen && ( <> <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsCartOpen(false)} className="fixed inset-0 bg-black/60 z-[60] backdrop-blur-sm" /> <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-slate-900 border-l border-gray-200 dark:border-white/10 z-[70] shadow-2xl flex flex-col"> <div className="p-4 md:p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-slate-950/50"> <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2"><ShoppingBag className="text-blue-600 dark:text-blue-500"/> Cart</h2> <button onClick={() => setIsCartOpen(false)} className="p-2 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full text-gray-500 dark:text-gray-400"><X /></button> </div> <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 bg-white dark:bg-slate-900"> {cart.length === 0 ? (<div className="text-center text-gray-500 mt-20"><ShoppingCart size={48} className="mx-auto mb-4 opacity-50"/><p>Your cart is empty.</p></div>) : ( cart.map(item => ( <motion.div layout key={item.id} className="flex gap-3 bg-gray-50 dark:bg-slate-800/50 p-3 rounded-xl border border-gray-200 dark:border-white/5 items-center shadow-sm"> <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="w-5 h-5 accent-blue-600 cursor-pointer"/> <img src={item.image || 'https://via.placeholder.com/80'} alt={item.name} className="w-16 h-16 object-cover rounded bg-white dark:bg-gray-800" /> <div className="flex-1"> <div className="flex justify-between items-start"><h3 className="font-bold text-gray-900 dark:text-white text-sm line-clamp-1">{item.name}</h3><button onClick={() => removeFromCart(item.id)} className="text-gray-400 hover:text-red-500"><Trash2 size={14}/></button></div> <p className="text-blue-600 dark:text-blue-400 font-mono text-xs font-bold">₹{item.price}</p> <div className="flex items-center gap-3 mt-2 bg-gray-200 dark:bg-black/40 w-fit rounded-lg"><button onClick={() => decreaseQty(item.id)} className="p-1 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-700 dark:text-white"><Minus size={12}/></button><span className="text-xs font-bold w-4 text-center text-gray-900 dark:text-white">{item.qty}</span><button onClick={() => addToCart(item)} className="p-1 hover:bg-gray-300 dark:hover:bg-white/10 text-gray-700 dark:text-white"><Plus size={12}/></button></div> </div> </motion.div> )) )} </div> {cart.length > 0 && (<div className="p-6 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-slate-950/80 backdrop-blur"><div className="flex justify-between items-center mb-4"><span className="text-gray-500 dark:text-gray-400">Selected Total</span><span className="text-2xl font-bold text-gray-900 dark:text-white">₹{payTotal.toLocaleString()}</span></div><button onClick={handleRazorpay} className="w-full py-3.5 bg-yellow-400 hover:bg-yellow-500 text-black font-bold rounded-xl shadow-md transition-all uppercase tracking-wider">Proceed to Pay</button></div>)} </motion.div> </> )} </AnimatePresence> );
 };
 
-// 🔥 NEW: REAL LIVE CHAT WIDGET
+// FIX: Removed unused 'user' and 'toast' variables from this scope
 const ChatWidget = () => {
-    const { user, toast, isChatWidgetOpen, setIsChatWidgetOpen } = useContext(AppContext);
+    const { isChatWidgetOpen, setIsChatWidgetOpen } = useContext(AppContext);
     const [msgs, setMsgs] = useState([{ from: 'bot', text: 'Hi! How can I help you today?' }]);
     const [input, setInput] = useState('');
     const scrollRef = useRef(null);
@@ -411,8 +422,10 @@ const ChatWidget = () => {
     );
 };
 
-const AuthModal = ({ isOpen, onClose }) => { const { loginUser, toast } = useContext(AppContext); const [mode, setMode] = useState('login'); const [step, setStep] = useState(1); const [loading, setLoading] = useState(false); const [contact, setContact] = useState(''); const [otp, setOtp] = useState(''); const [generatedOtp, setGeneratedOtp] = useState(null); const [details, setDetails] = useState({ name: '', password: '' }); const x = useMotionValue(0); const y = useMotionValue(0); const rotateX = useTransform(y, [-100, 100], [10, -10]); const rotateY = useTransform(x, [-100, 100], [-10, 10]); if (!isOpen) return null; const handleMouseMove = (e) => { const rect = e.currentTarget.getBoundingClientRect(); x.set(e.clientX - rect.left - rect.width / 2); y.set(e.clientY - rect.top - rect.height / 2); }; const handleLogin = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact, password: details.password }) }); const data = await res.json(); if (res.ok) { loginUser(data); onClose(); } else { toast(data.message || "Login Failed", "error"); } } catch (err) { toast("Server Error", "error"); } setLoading(false); }; const requestOtp = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact }) }); const data = await res.json(); if (res.ok) { setGeneratedOtp(data.mockOtp); alert(`OTP Sent! (Test: ${data.mockOtp})`); setStep(2); } else { toast(data.message, "error"); } } catch (err) { toast("Network Error", "error"); } setLoading(false); }; const verifyOtp = (e) => { e.preventDefault(); if (otp == generatedOtp) setStep(3); else toast("Incorrect OTP", "error"); }; const handleRegister = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact, otp, name: details.name, password: details.password }) }); const data = await res.json(); if (res.ok) { loginUser(data); onClose(); } else { toast("Registration Failed", "error"); } } catch (err) { toast("Error", "error"); } setLoading(false); }; return ( <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md perspective-1000 p-4"> <motion.div style={{ rotateX, rotateY, z: 100 }} onMouseMove={handleMouseMove} onMouseLeave={() => { x.set(0); y.set(0); }} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-white dark:bg-slate-900 border border-gray-200 dark:border-blue-500/30 w-full max-w-md p-8 rounded-2xl shadow-2xl overflow-hidden"> <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 z-10"><X /></button> <div className="relative z-10 text-center"><h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-wider">{mode === 'login' ? 'WELCOME' : 'JOIN US'}</h2> <AnimatePresence mode="wait"> {mode === 'login' && ( <motion.form key="login" initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }} onSubmit={handleLogin} className="space-y-4"> <div className="relative group"><User className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-500 transition" size={18} /><input type="text" placeholder="Email or Phone" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={contact} onChange={e => setContact(e.target.value)} required /></div> <div className="relative group"><Lock className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-500 transition" size={18} /><input type="password" placeholder="Password" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.password} onChange={e => setDetails({...details, password: e.target.value})} required /></div> <button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black transition">{loading ? <Loader className="animate-spin mx-auto"/> : 'Sign In'}</button> <div className="text-gray-500 dark:text-gray-400 text-sm mt-4">New User? <span onClick={() => { setMode('signup'); setContact(''); }} className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">Create Account</span></div> </motion.form> )} {mode === 'signup' && ( <motion.div key="signup" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}> {step === 1 && (<form onSubmit={requestOtp} className="space-y-4"><div className="relative group"><Smartphone className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="text" placeholder="Mobile or Email" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-green-500 outline-none" value={contact} onChange={e => setContact(e.target.value)} required /></div><button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">{loading ? <Loader className="animate-spin mx-auto"/> : 'Send OTP'}</button></form>)} {step === 2 && (<form onSubmit={verifyOtp} className="space-y-4"><div className="relative group"><ShieldCheck className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="number" placeholder="Enter OTP" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-purple-500 outline-none" value={otp} onChange={e => setOtp(e.target.value)} required /></div><button className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">Verify</button></form>)} {step === 3 && (<form onSubmit={handleRegister} className="space-y-4"><div className="relative group"><User className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="text" placeholder="Full Name" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.name} onChange={e => setDetails({...details, name: e.target.value})} required /></div><div className="relative group"><Key className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="password" placeholder="Create Password" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.password} onChange={e => setDetails({...details, password: e.target.value})} required /></div><button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">{loading ? <Loader className="animate-spin mx-auto"/> : 'Complete Signup'}</button></form>)} <div className="text-gray-500 dark:text-gray-400 text-sm mt-4">Already have an account? <span onClick={() => setMode('login')} className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">Login Here</span></div> </motion.div> )} </AnimatePresence> </div> </motion.div> </div> ); };
+// FIX: Changed == to ===
+const AuthModal = ({ isOpen, onClose }) => { const { loginUser, toast } = useContext(AppContext); const [mode, setMode] = useState('login'); const [step, setStep] = useState(1); const [loading, setLoading] = useState(false); const [contact, setContact] = useState(''); const [otp, setOtp] = useState(''); const [generatedOtp, setGeneratedOtp] = useState(null); const [details, setDetails] = useState({ name: '', password: '' }); const x = useMotionValue(0); const y = useMotionValue(0); const rotateX = useTransform(y, [-100, 100], [10, -10]); const rotateY = useTransform(x, [-100, 100], [-10, 10]); if (!isOpen) return null; const handleMouseMove = (e) => { const rect = e.currentTarget.getBoundingClientRect(); x.set(e.clientX - rect.left - rect.width / 2); y.set(e.clientY - rect.top - rect.height / 2); }; const handleLogin = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact, password: details.password }) }); const data = await res.json(); if (res.ok) { loginUser(data); onClose(); } else { toast(data.message || "Login Failed", "error"); } } catch (err) { toast("Server Error", "error"); } setLoading(false); }; const requestOtp = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/otp`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact }) }); const data = await res.json(); if (res.ok) { setGeneratedOtp(data.mockOtp); alert(`OTP Sent! (Test: ${data.mockOtp})`); setStep(2); } else { toast(data.message, "error"); } } catch (err) { toast("Network Error", "error"); } setLoading(false); }; const verifyOtp = (e) => { e.preventDefault(); if (Number(otp) === Number(generatedOtp)) setStep(3); else toast("Incorrect OTP", "error"); }; const handleRegister = async (e) => { e.preventDefault(); setLoading(true); try { const res = await fetch(`${API_URL}/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contact, otp, name: details.name, password: details.password }) }); const data = await res.json(); if (res.ok) { loginUser(data); onClose(); } else { toast("Registration Failed", "error"); } } catch (err) { toast("Error", "error"); } setLoading(false); }; return ( <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-md perspective-1000 p-4"> <motion.div style={{ rotateX, rotateY, z: 100 }} onMouseMove={handleMouseMove} onMouseLeave={() => { x.set(0); y.set(0); }} initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="relative bg-white dark:bg-slate-900 border border-gray-200 dark:border-blue-500/30 w-full max-w-md p-8 rounded-2xl shadow-2xl overflow-hidden"> <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-red-500 z-10"><X /></button> <div className="relative z-10 text-center"><h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 tracking-wider">{mode === 'login' ? 'WELCOME' : 'JOIN US'}</h2> <AnimatePresence mode="wait"> {mode === 'login' && ( <motion.form key="login" initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: 20, opacity: 0 }} onSubmit={handleLogin} className="space-y-4"> <div className="relative group"><User className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-500 transition" size={18} /><input type="text" placeholder="Email or Phone" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={contact} onChange={e => setContact(e.target.value)} required /></div> <div className="relative group"><Lock className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-blue-500 transition" size={18} /><input type="password" placeholder="Password" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.password} onChange={e => setDetails({...details, password: e.target.value})} required /></div> <button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black transition">{loading ? <Loader className="animate-spin mx-auto"/> : 'Sign In'}</button> <div className="text-gray-500 dark:text-gray-400 text-sm mt-4">New User? <span onClick={() => { setMode('signup'); setContact(''); }} className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">Create Account</span></div> </motion.form> )} {mode === 'signup' && ( <motion.div key="signup" initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }}> {step === 1 && (<form onSubmit={requestOtp} className="space-y-4"><div className="relative group"><Smartphone className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="text" placeholder="Mobile or Email" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-green-500 outline-none" value={contact} onChange={e => setContact(e.target.value)} required /></div><button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">{loading ? <Loader className="animate-spin mx-auto"/> : 'Send OTP'}</button></form>)} {step === 2 && (<form onSubmit={verifyOtp} className="space-y-4"><div className="relative group"><ShieldCheck className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="number" placeholder="Enter OTP" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-purple-500 outline-none" value={otp} onChange={e => setOtp(e.target.value)} required /></div><button className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">Verify</button></form>)} {step === 3 && (<form onSubmit={handleRegister} className="space-y-4"><div className="relative group"><User className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="text" placeholder="Full Name" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.name} onChange={e => setDetails({...details, name: e.target.value})} required /></div><div className="relative group"><Key className="absolute left-3 top-3.5 text-gray-500 transition" size={18} /><input type="password" placeholder="Create Password" className="w-full bg-gray-100 dark:bg-black/40 border border-gray-300 dark:border-gray-700 rounded-lg py-3 pl-10 text-gray-900 dark:text-white focus:border-blue-500 outline-none" value={details.password} onChange={e => setDetails({...details, password: e.target.value})} required /></div><button disabled={loading} className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 rounded-lg font-bold text-black">{loading ? <Loader className="animate-spin mx-auto"/> : 'Complete Signup'}</button></form>)} <div className="text-gray-500 dark:text-gray-400 text-sm mt-4">Already have an account? <span onClick={() => setMode('login')} className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">Login Here</span></div> </motion.div> )} </AnimatePresence> </div> </motion.div> </div> ); };
 
+// FIX: Added alt prop to img
 const ProductCard = ({ product, onOpenLogin }) => {
   const { addToCart, cart, decreaseQty, user, toast } = useContext(AppContext);
   const navigate = useNavigate();
@@ -467,44 +480,25 @@ const ProductCard = ({ product, onOpenLogin }) => {
 };
 
 // --- 7. PAGES ---
-// FIX: Add ChevronLeft, ChevronRight to your import list at the top of the file!
-// import { ..., ChevronLeft, ChevronRight, ... } from 'lucide-react';
 
 const HeroBanner = () => {
     const [current, setCurrent] = useState(0);
     const [isHovered, setIsHovered] = useState(false);
     
     const banners = [
-        {
-            id: 1,
-            title: "Industrial Power Tools",
-            subtitle: "Up to 40% OFF this week",
-            image: "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&q=80",
-            color: "from-blue-900 via-slate-900 to-black"
-        },
-        {
-            id: 2,
-            title: "Premium Asian Paints",
-            subtitle: "Color your world | Buy 2 Get 1 Free",
-            image: "https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&q=80",
-            color: "from-purple-900 via-indigo-900 to-black"
-        },
-        {
-            id: 3,
-            title: "Plumbing Essentials",
-            subtitle: "Leak-proof solutions for your home",
-            image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&q=80",
-            color: "from-emerald-900 via-green-900 to-black"
-        }
+        { id: 1, title: "Industrial Power Tools", subtitle: "Up to 40% OFF this week", image: "https://images.unsplash.com/photo-1504148455328-c376907d081c?auto=format&fit=crop&q=80", color: "from-blue-900 via-slate-900 to-black" },
+        { id: 2, title: "Premium Asian Paints", subtitle: "Color your world | Buy 2 Get 1 Free", image: "https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&q=80", color: "from-purple-900 via-indigo-900 to-black" },
+        { id: 3, title: "Plumbing Essentials", subtitle: "Leak-proof solutions for your home", image: "https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&q=80", color: "from-emerald-900 via-green-900 to-black" }
     ];
 
+    // FIX: Added banners.length to dependency array
     useEffect(() => {
         if (isHovered) return;
         const interval = setInterval(() => {
             setCurrent((prev) => (prev === banners.length - 1 ? 0 : prev + 1));
         }, 5000);
         return () => clearInterval(interval);
-    }, [isHovered]);
+    }, [isHovered, banners.length]);
 
     const scrollToProducts = () => {
         const productSection = document.getElementById('product-grid');
@@ -520,17 +514,9 @@ const HeroBanner = () => {
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
-            {/* Slides */}
             <div className="w-full h-full relative">
                 <AnimatePresence mode='wait'>
-                    <motion.div 
-                        key={current}
-                        initial={{ opacity: 0, x: 100 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        exit={{ opacity: 0, x: -100 }}
-                        transition={{ duration: 0.5 }}
-                        className={`absolute inset-0 w-full h-full bg-gradient-to-r ${banners[current].color}`}
-                    >
+                    <motion.div key={current} initial={{ opacity: 0, x: 100 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -100 }} transition={{ duration: 0.5 }} className={`absolute inset-0 w-full h-full bg-gradient-to-r ${banners[current].color}`}>
                         <img src={banners[current].image} alt="Banner" className="absolute inset-0 w-full h-full object-cover opacity-40 mix-blend-overlay"/>
                         <div className="relative z-10 max-w-7xl mx-auto h-full flex flex-col justify-center px-6 md:px-12">
                             <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}>
@@ -545,24 +531,10 @@ const HeroBanner = () => {
                     </motion.div>
                 </AnimatePresence>
             </div>
-
-            {/* Controls */}
-            <button onClick={prev} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-black/30 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100">
-                <ChevronLeft size={32}/>
-            </button>
-            <button onClick={next} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/30 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100">
-                <ChevronRight size={32}/>
-            </button>
-
-            {/* Dots */}
+            <button onClick={prev} className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-black/30 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100"><ChevronLeft size={32}/></button>
+            <button onClick={next} className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-black/30 hover:bg-black/60 text-white rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100"><ChevronRight size={32}/></button>
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
-                {banners.map((_, i) => (
-                    <button 
-                        key={i} 
-                        onClick={() => setCurrent(i)} 
-                        className={`w-2.5 h-2.5 rounded-full transition-all shadow-sm ${current === i ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'}`}
-                    />
-                ))}
+                {banners.map((_, i) => ( <button key={i} onClick={() => setCurrent(i)} className={`w-2.5 h-2.5 rounded-full transition-all shadow-sm ${current === i ? 'bg-white w-8' : 'bg-white/50 hover:bg-white/80'}`}/> ))}
             </div>
         </div>
     );
@@ -617,9 +589,10 @@ const MembershipPage = ({ onOpenLogin }) => {
     );
 };
 
+// FIX: Removed unused variables
 const ProductDetailPage = ({ onOpenLogin }) => {
     const { id } = useParams();
-    const { addToCart, cart, decreaseQty, user, toast } = useContext(AppContext);
+    const { addToCart, user, toast } = useContext(AppContext);
     const [product, setProduct] = useState(null);
     const [reviews, setReviews] = useState([]);
     const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
@@ -685,7 +658,7 @@ const ProductDetailPage = ({ onOpenLogin }) => {
     );
 };
 
-// 🔥 FIX: ADMIN PANEL LOGIC UPGRADE
+// FIX: Added alt attribute to image
 const AdminDashboard = () => { 
     const { user, toast } = useContext(AppContext); 
     const [activeTab, setActiveTab] = useState('inventory'); 
@@ -694,13 +667,10 @@ const AdminDashboard = () => {
     const [callRequests, setCallRequests] = useState([]);
     const [chats, setChats] = useState([]);
     const [form, setForm] = useState({ id: null, name: '', category: '', price: '', stock: '', image: '' }); 
-    
-    // Chat Reply States
     const [selectedChatUser, setSelectedChatUser] = useState(null);
     const [adminMessages, setAdminMessages] = useState([]);
     const [replyText, setReplyText] = useState("");
 
-    // FETCH DATA
     const refreshData = async () => { 
         setProducts(await (await fetch(`${API_URL}/products`)).json()); 
         setUsers(await (await fetch(`${API_URL}/users`)).json()); 
@@ -710,15 +680,12 @@ const AdminDashboard = () => {
     
     useEffect(() => { refreshData(); }, []); 
     
-    // REDIRECT IF NOT ADMIN
     if (!user?.isAdmin) return <Navigate to="/" />; 
 
-    // HANDLERS
     const handleSaveProduct = async (e) => { e.preventDefault(); const url = form.id ? `${API_URL}/products/${form.id}` : `${API_URL}/products`; await fetch(url, { method: form.id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(form)}); setForm({ id: null, name: '', category: '', price: '', stock: '', image: '' }); refreshData(); toast("Product Saved", "success"); }; 
     const handleDelete = async (id, type) => { if(!window.confirm("Sure?")) return; await fetch(`${API_URL}/${type}/${id}`, { method: 'DELETE' }); refreshData(); toast("Deleted", "info"); }; 
     const resolveCall = async (id) => { await fetch(`${API_URL}/admin/call-requests/${id}`, { method: 'PUT' }); refreshData(); toast("Marked as Called", "success"); };
 
-    // CHAT LOGIC
     const openChat = async (chatUser) => {
         setSelectedChatUser(chatUser);
         const res = await fetch(`${API_URL}/chat/${chatUser.id}`);
@@ -740,14 +707,11 @@ const AdminDashboard = () => {
     return (
         <div className="pt-24 px-4 max-w-7xl mx-auto min-h-screen dark:text-white">
             <h1 className="text-3xl font-bold mb-6">Admin Command Center</h1>
-            
             <div className="flex gap-4 mb-8 overflow-x-auto pb-2">
                 <button onClick={() => setActiveTab('inventory')} className={`px-6 py-2 rounded-full font-bold transition ${activeTab==='inventory'?'bg-blue-600 text-white':'bg-gray-200 dark:bg-slate-800'}`}>Inventory</button>
                 <button onClick={() => setActiveTab('customers')} className={`px-6 py-2 rounded-full font-bold transition ${activeTab==='customers'?'bg-blue-600 text-white':'bg-gray-200 dark:bg-slate-800'}`}>Customers</button>
                 <button onClick={() => setActiveTab('communications')} className={`px-6 py-2 rounded-full font-bold transition ${activeTab==='communications'?'bg-blue-600 text-white':'bg-gray-200 dark:bg-slate-800'}`}>Communications</button>
             </div>
-
-            {/* INVENTORY TAB */}
             {activeTab === 'inventory' && (
                 <div className="grid md:grid-cols-3 gap-8">
                     <form onSubmit={handleSaveProduct} className="bg-white dark:bg-slate-800 p-6 rounded shadow space-y-4">
@@ -763,7 +727,7 @@ const AdminDashboard = () => {
                         {products.map(p=>(
                             <div key={p.id} className="flex justify-between items-center bg-white dark:bg-slate-800 p-4 rounded shadow border dark:border-white/10">
                                 <div className="flex gap-4 items-center">
-                                    <img src={p.image} className="w-12 h-12 object-cover rounded"/>
+                                    <img src={p.image} className="w-12 h-12 object-cover rounded" alt={p.name}/>
                                     <div><div className="font-bold">{p.name}</div><div className="text-sm text-gray-500">₹{p.price} | Stock: {p.stock}</div></div>
                                 </div>
                                 <div className="flex gap-2">
@@ -775,8 +739,6 @@ const AdminDashboard = () => {
                     </div>
                 </div>
             )}
-
-            {/* CUSTOMERS TAB */}
             {activeTab === 'customers' && (
                 <div className="bg-white dark:bg-slate-800 rounded shadow overflow-hidden">
                     <table className="w-full text-left">
@@ -794,65 +756,44 @@ const AdminDashboard = () => {
                     </table>
                 </div>
             )}
-
-            {/* COMMUNICATIONS TAB */}
             {activeTab === 'communications' && (
                 <div className="grid md:grid-cols-2 gap-8">
-                    {/* Call Requests */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded shadow h-[500px] overflow-y-auto">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><Phone size={20}/> Call Requests</h3>
                         <div className="space-y-3">
                             {callRequests.map(r => (
                                 <div key={r.id} className="flex justify-between items-center p-3 border rounded bg-gray-50 dark:bg-slate-900">
-                                    <div>
-                                        <div className="font-bold">{r.phone}</div>
-                                        <div className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString()}</div>
-                                    </div>
+                                    <div><div className="font-bold">{r.phone}</div><div className="text-xs text-gray-500">{new Date(r.createdAt).toLocaleString()}</div></div>
                                     <div className="flex gap-2">
                                         <a href={`tel:${r.phone}`} className="p-2 bg-green-100 text-green-600 rounded hover:bg-green-200"><Phone size={16}/></a>
                                         {r.status !== 'Called' && <button onClick={()=>resolveCall(r.id)} className="p-2 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"><CheckCircle size={16}/></button>}
                                     </div>
                                 </div>
                             ))}
-                            {callRequests.length === 0 && <p className="text-gray-500">No pending calls.</p>}
                         </div>
                     </div>
-
-                    {/* Live Chats List */}
                     <div className="bg-white dark:bg-slate-800 p-6 rounded shadow h-[500px] overflow-y-auto">
                         <h3 className="font-bold mb-4 flex items-center gap-2"><MessageSquare size={20}/> Active Chats</h3>
                         <div className="space-y-3">
                             {chats.map(c => (
                                 <div key={c.id} onClick={() => openChat(c)} className="flex justify-between items-center p-3 border rounded bg-gray-50 dark:bg-slate-900 cursor-pointer hover:border-blue-500">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold">{c.name[0]}</div>
-                                        <div><div className="font-bold">{c.name}</div><div className="text-xs text-gray-500">{c.email}</div></div>
-                                    </div>
+                                    <div className="flex items-center gap-3"><div className="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center font-bold">{c.name[0]}</div><div><div className="font-bold">{c.name}</div><div className="text-xs text-gray-500">{c.email}</div></div></div>
                                     <button className="text-blue-600 font-bold text-sm">Reply</button>
                                 </div>
                             ))}
-                            {chats.length === 0 && <p className="text-gray-500">No active chats.</p>}
                         </div>
                     </div>
                 </div>
             )}
-
-            {/* CHAT REPLY MODAL */}
             <AnimatePresence>
                 {selectedChatUser && (
                     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                         <motion.div initial={{scale:0.95}} animate={{scale:1}} exit={{scale:0.95}} className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col h-[600px] border dark:border-white/10">
-                            <div className="bg-blue-600 p-4 flex justify-between items-center text-white">
-                                <h3 className="font-bold">Chat with {selectedChatUser.name}</h3>
-                                <button onClick={()=>setSelectedChatUser(null)}><X size={20}/></button>
-                            </div>
+                            <div className="bg-blue-600 p-4 flex justify-between items-center text-white"><h3 className="font-bold">Chat with {selectedChatUser.name}</h3><button onClick={()=>setSelectedChatUser(null)}><X size={20}/></button></div>
                             <div className="flex-1 p-4 overflow-y-auto bg-gray-50 dark:bg-slate-950/50 space-y-3">
                                 {adminMessages.map((m, i) => (
                                     <div key={i} className={`flex ${m.sender === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`p-3 rounded-xl max-w-[80%] text-sm ${m.sender === 'admin' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-bl-none border'}`}>
-                                            {m.text}
-                                            <div className="text-[10px] opacity-70 mt-1 text-right">{new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                                        </div>
+                                        <div className={`p-3 rounded-xl max-w-[80%] text-sm ${m.sender === 'admin' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-200 rounded-bl-none border'}`}>{m.text}<div className="text-[10px] opacity-70 mt-1 text-right">{new Date(m.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div></div>
                                     </div>
                                 ))}
                             </div>
@@ -871,58 +812,20 @@ const AdminDashboard = () => {
 const MapPage = () => { 
   const SHOP_POSITION = [25.5941, 85.1376]; 
   const [status, setStatus] = useState({ open: false, text: "Checking...", color: "text-gray-400" }); 
-  
-  useEffect(() => { 
-    const check = () => { 
-      const h = new Date().getHours(); 
-      const open = h >= 9 && h < 21; 
-      setStatus({ open, text: open ? "OPEN" : "CLOSED", color: open ? "text-green-500" : "text-red-500" }); 
-    }; 
-    check(); 
-    const t = setInterval(check, 60000); 
-    return () => clearInterval(t); 
-  }, []); 
-
-  // FIX: Updated Navigation Logic to correct Google Maps URL
-  const nav = () => { 
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (p) => {
-                const url = `https://www.google.com/maps/dir/?api=1&origin=${p.coords.latitude},${p.coords.longitude}&destination=${SHOP_POSITION[0]},${SHOP_POSITION[1]}`;
-                window.open(url, '_blank');
-            },
-            () => {
-                // Fallback if location permission denied: Open maps with destination only
-                window.open(`https://www.google.com/maps/search/?api=1&query=${SHOP_POSITION[0]},${SHOP_POSITION[1]}`, '_blank');
-            }
-        );
-    } else {
-        alert("Geolocation is not supported by this browser.");
-    }
-  }; 
-
+  useEffect(() => { const check = () => { const h = new Date().getHours(); const open = h >= 9 && h < 21; setStatus({ open, text: open ? "OPEN" : "CLOSED", color: open ? "text-green-500" : "text-red-500" }); }; check(); const t = setInterval(check, 60000); return () => clearInterval(t); }, []); 
+  const nav = () => { if (navigator.geolocation) { navigator.geolocation.getCurrentPosition((p) => { const url = `https://www.google.com/maps/dir/?api=1&origin=${p.coords.latitude},${p.coords.longitude}&destination=${SHOP_POSITION[0]},${SHOP_POSITION[1]}`; window.open(url, '_blank'); }, () => { window.open(`https://www.google.com/maps/search/?api=1&query=${SHOP_POSITION[0]},${SHOP_POSITION[1]}`, '_blank'); }); } else { alert("Geolocation is not supported by this browser."); } }; 
   return (
     <div className="pt-20 h-screen flex flex-col md:flex-row">
-        <div className="flex-1 h-1/2 md:h-full">
-            <MapContainer center={SHOP_POSITION} zoom={15} style={{height:"100%"}}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/>
-                <Marker position={SHOP_POSITION}><Popup>Umang Hardware</Popup></Marker>
-            </MapContainer>
-        </div>
+        <div className="flex-1 h-1/2 md:h-full"><MapContainer center={SHOP_POSITION} zoom={15} style={{height:"100%"}}><TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"/><Marker position={SHOP_POSITION}><Popup>Umang Hardware</Popup></Marker></MapContainer></div>
         <div className="bg-white dark:bg-slate-900 p-8 md:w-96 flex flex-col justify-center border-l dark:border-white/10"> 
             <h2 className="text-3xl font-bold dark:text-white mb-6">Location Hub</h2> 
-            <div className="space-y-6"> 
-                <div className="flex gap-4"><MapPin className="text-blue-500"/><div className="dark:text-gray-300"><h4 className="font-bold">Address</h4><p className="text-sm">Main Road, Kankarbagh, Patna</p></div></div> 
-                <div className="flex gap-4"><Clock className={status.color}/><div className="dark:text-gray-300"><h4 className="font-bold">Status: {status.text}</h4><p className="text-sm">9:00 AM - 9:00 PM</p></div></div> 
-                <div className="flex gap-4"><Phone className="text-purple-500"/><div className="dark:text-gray-300"><h4 className="font-bold">Contact</h4><p className="text-sm">+91 98765 43210</p></div></div> 
-            </div> 
+            <div className="space-y-6"> <div className="flex gap-4"><MapPin className="text-blue-500"/><div className="dark:text-gray-300"><h4 className="font-bold">Address</h4><p className="text-sm">Main Road, Kankarbagh, Patna</p></div></div> <div className="flex gap-4"><Clock className={status.color}/><div className="dark:text-gray-300"><h4 className="font-bold">Status: {status.text}</h4><p className="text-sm">9:00 AM - 9:00 PM</p></div></div> <div className="flex gap-4"><Phone className="text-purple-500"/><div className="dark:text-gray-300"><h4 className="font-bold">Contact</h4><p className="text-sm">+91 98765 43210</p></div></div> </div> 
             <button onClick={nav} className="mt-8 w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg active:scale-95 transition-transform">Start Navigation</button> 
         </div>
     </div>
   ); 
 };
 
-// --- 8. SUPPORT & PROFILE PAGES ---
 const TrackingModal = ({ order, onClose }) => {
     if (!order) return null;
     const steps = ['Placed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
@@ -951,10 +854,10 @@ const TrackingModal = ({ order, onClose }) => {
     );
 };
 
-// The new Profile Dashboard (Amazon Style)
+// FIX: Added alt attribute to image
 const ProfileDashboard = () => {
     const { user, toast } = useContext(AppContext);
-    const [view, setView] = useState('orders'); // Default to orders
+    const [view, setView] = useState('orders'); 
     const [orders, setOrders] = useState([]);
     const [profile, setProfile] = useState({ name: user?.name || '', password: '' });
     const [trackOrder, setTrackOrder] = useState(null);
@@ -969,7 +872,6 @@ const ProfileDashboard = () => {
     return (
         <div className="pt-24 px-4 min-h-screen max-w-[1600px] mx-auto dark:text-white pb-12">
             <h1 className="text-3xl font-bold mb-8">Your Account</h1>
-            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
                 <div onClick={() => setView('orders')} className={`border dark:border-white/10 p-6 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition flex items-center gap-4 ${view==='orders'?'ring-2 ring-blue-500':''}`}><Truck size={32} className="text-blue-500"/><div><h3 className="font-bold">Your Orders</h3><p className="text-sm text-gray-500">Track & Buy Again</p></div></div>
                 <div onClick={() => setView('security')} className={`border dark:border-white/10 p-6 rounded-xl cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 transition flex items-center gap-4 ${view==='security'?'ring-2 ring-purple-500':''}`}><Lock size={32} className="text-purple-500"/><div><h3 className="font-bold">Login & Security</h3><p className="text-sm text-gray-500">Edit Name, Password</p></div></div>
@@ -987,7 +889,7 @@ const ProfileDashboard = () => {
                                 <div><span className="text-xs text-gray-500 uppercase">Total</span><div className="font-bold">₹{o.total_amount}</div></div>
                                 <div><span className="text-xs text-gray-500 uppercase">Order #</span><div className="font-bold">{o.id}</div></div>
                             </div>
-                            <div className="space-y-4">{o.order_items.map(i => (<div key={i.id} className="flex gap-4"><img src={i.image} className="w-16 h-16 object-cover rounded"/><div><div className="font-bold">{i.product_name}</div><div className="text-sm text-gray-500">Qty: {i.quantity}</div></div></div>))}</div>
+                            <div className="space-y-4">{o.order_items.map(i => (<div key={i.id} className="flex gap-4"><img src={i.image} className="w-16 h-16 object-cover rounded" alt={i.product_name}/><div><div className="font-bold">{i.product_name}</div><div className="text-sm text-gray-500">Qty: {i.quantity}</div></div></div>))}</div>
                             <div className="mt-6 flex gap-3">
                                 <button onClick={() => setTrackOrder(o)} className="px-4 py-2 bg-yellow-400 text-black font-bold rounded shadow text-sm hover:bg-yellow-500">Track Package</button>
                                 <button onClick={()=>generateInvoice(o.id, user, o.order_items, o.total_amount, 'PAID', o.date)} className="px-4 py-2 border dark:border-white/20 rounded font-bold text-sm hover:bg-gray-100 dark:hover:bg-slate-800">Invoice</button>
@@ -1012,7 +914,6 @@ const ProfileDashboard = () => {
     );
 };
 
-// The Support Page (Now separate)
 const SupportPage = () => {
     const { user, toast, setIsChatWidgetOpen } = useContext(AppContext);
     const [faqOpen, setFaqOpen] = useState(null);
@@ -1044,57 +945,42 @@ const SupportPage = () => {
     return (
         <div className="pt-24 px-4 min-h-screen max-w-[1600px] mx-auto dark:text-white pb-12">
             <h1 className="text-3xl font-bold mb-8">Customer Service</h1>
-            
-            {/* ADVANCED CONTACT BLOCK */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
-                {/* 1. Live Chat Card */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-white/10 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition"><MessageSquare size={120} className="text-blue-500"/></div>
                     <div className="relative z-10">
                         <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-600 mb-4"><MessageSquare size={24}/></div>
                         <h3 className="text-lg font-bold dark:text-white mb-1">Live Chat</h3>
                         <p className="text-sm text-gray-500 mb-4">Chat with our support team.</p>
-                        <div className="flex items-center gap-2 text-xs text-green-600 font-bold mb-4 bg-green-50 dark:bg-green-900/20 w-fit px-2 py-1 rounded-full">
-                            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span></span>
-                            Agents Online
-                        </div>
                         <button onClick={() => setIsChatWidgetOpen(true)} className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition shadow-lg shadow-blue-500/20">Chat Now ↘</button>
                     </div>
                 </div>
-
-                {/* 2. Phone Callback Card */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-white/10 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition"><Phone size={120} className="text-green-500"/></div>
                     <div className="relative z-10">
                         <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-600 mb-4"><Phone size={24}/></div>
                         <h3 className="text-lg font-bold dark:text-white mb-1">Talk to Us</h3>
                         <p className="text-sm text-gray-500 mb-4">Instant call or request callback.</p>
-                        
                         <div className="grid grid-cols-2 gap-2 mb-3">
                              <a href="tel:+919876543210" className="flex items-center justify-center gap-1 py-2 bg-green-100 text-green-700 rounded-lg font-bold text-xs hover:bg-green-200 transition"><Phone size={14}/> Call Now</a>
                              <div className="text-center py-2 text-xs text-gray-400 flex items-center justify-center">OR</div>
                         </div>
-
                         <div className="space-y-2">
                             <input type="text" placeholder="Your Number" className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 outline-none dark:text-white placeholder-gray-400" value={callRequest.phone} onChange={e=>setCallRequest({phone:e.target.value})}/>
                             <button onClick={requestCallback} className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold text-sm transition shadow-lg shadow-green-500/20">Request Call</button>
                         </div>
                     </div>
                 </div>
-
-                {/* 3. Email Support Card */}
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border dark:border-white/10 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 p-4 opacity-5 group-hover:opacity-10 transition"><Mail size={120} className="text-purple-500"/></div>
                     <div className="relative z-10">
                         <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-600 mb-4"><Mail size={24}/></div>
                         <h3 className="text-lg font-bold dark:text-white mb-1">Email Us</h3>
-                        <p className="text-sm text-gray-500 mb-4">Send us a detailed query. We respond in 24h.</p>
+                        <p className="text-sm text-gray-500 mb-4">Send us a detailed query.</p>
                         <a href="mailto:help@umang.com" className="block w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold text-sm transition text-center shadow-lg shadow-purple-500/20">Compose Email</a>
                     </div>
                 </div>
             </div>
-
-            {/* RESTORED FAQ SECTION */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-12 mb-12">
                 <div className="lg:col-span-2">
                     <h2 className="text-2xl font-bold dark:text-white mb-6">Frequently Asked Questions</h2>
@@ -1115,8 +1001,6 @@ const SupportPage = () => {
                         ))}
                     </div>
                 </div>
-                
-                {/* Feedback Section */}
                 <div>
                     <h2 className="text-2xl font-bold mb-6">Rate Our Service</h2>
                     <form onSubmit={submitFeedback} className="space-y-4 bg-white dark:bg-slate-800/50 p-6 rounded-xl shadow border dark:border-white/10">
@@ -1126,18 +1010,13 @@ const SupportPage = () => {
                     </form>
                 </div>
             </div>
-
-            {/* Recent Feedback List */}
             <div className="mt-12">
                 <h3 className="font-bold text-xl mb-4">Recent Customer Feedback</h3>
                 <div className="grid md:grid-cols-3 gap-4">
                     {reviews.length === 0 && <p className="text-gray-500">No feedback yet.</p>}
                     {reviews.slice(0, 3).map(r => ( 
                         <div key={r.id} className="border border-gray-200 dark:border-white/10 p-4 rounded-lg bg-white dark:bg-slate-800">
-                            <div className="flex items-center gap-2 mb-2">
-                                <div className="w-8 h-8 bg-gray-200 dark:bg-slate-700 rounded-full flex items-center justify-center font-bold text-xs">{r.userName[0]}</div>
-                                <span className="font-bold text-sm">{r.userName}</span>
-                            </div>
+                            <div className="flex items-center gap-2 mb-2"><div className="w-8 h-8 bg-gray-200 dark:bg-slate-700 rounded-full flex items-center justify-center font-bold text-xs">{r.userName[0]}</div><span className="font-bold text-sm">{r.userName}</span></div>
                             <div className="flex text-yellow-400 text-xs mb-2">{[...Array(parseInt(r.rating))].map((_,i)=><Star key={i} size={12} fill="currentColor"/>)}</div>
                             <p className="text-sm text-gray-600 dark:text-gray-300 line-clamp-3">"{r.comment}"</p>
                         </div> 
@@ -1147,7 +1026,7 @@ const SupportPage = () => {
         </div>
     );
 };
-// --- 9. HOME PAGE ---
+
 const HomePage = ({ onOpenLogin }) => {
   const { searchTerm, selectedCategory } = useContext(AppContext);
   const [products, setProducts] = useState([]);
